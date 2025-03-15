@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPU Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">GPU Monitor</div>
+                <div class="header-actions">
+                    <span id="update-status" class="status">Connecting...</span>
+                    <button id="refresh-btn" class="btn btn-outline btn-light">Refresh</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div id="alerts-container">
+            <div id="no-gpu-alert" class="alert alert-warning hidden">
+                No NVIDIA GPUs detected. Make sure NVIDIA drivers are installed and GPUs are available.
+            </div>
+            <div id="error-alert" class="alert alert-danger hidden">
+                Error connecting to GPU monitoring service.
+            </div>
+        </div>
+
+        <div id="gpu-cards-container" class="grid">
+            <!-- GPU cards will be inserted here dynamically -->
+        </div>
+    </main>
+
+    <!-- GPU Card Template -->
+    <template id="gpu-card-template">
+        <div class="card gpu-card">
+            <div class="card-header">
+                <h2 class="card-title gpu-name">GPU Name</h2>
+                <span class="badge gpu-index">0</span>
+            </div>
+            <div class="card-body">
+                <div class="card-section">
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <h3 class="metric-title">GPU Utilization</h3>
+                            <div class="progress-container">
+                                <div class="progress-bar progress-bar-primary gpu-util-bar" style="width: 0%"></div>
+                            </div>
+                            <div class="metric-labels">
+                                <span>0%</span>
+                                <span class="gpu-util-text">0%</span>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <h3 class="metric-title">Memory Utilization</h3>
+                            <div class="progress-container">
+                                <div class="progress-bar progress-bar-success memory-util-bar" style="width: 0%"></div>
+                            </div>
+                            <div class="metric-labels">
+                                <span>0%</span>
+                                <span class="memory-util-text">0%</span>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <h3 class="metric-title">Temperature</h3>
+                            <div class="progress-container">
+                                <div class="progress-bar temperature-bar" style="width: 0%"></div>
+                            </div>
+                            <div class="metric-labels">
+                                <span>0°C</span>
+                                <span class="temperature-text">0°C</span>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <h3 class="metric-title">Power Usage</h3>
+                            <div class="progress-container">
+                                <div class="progress-bar progress-bar-info power-bar" style="width: 0%"></div>
+                            </div>
+                            <div class="metric-labels">
+                                <span>0W</span>
+                                <span class="power-text">0W / 0W</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric">
+                        <h3 class="metric-title">Memory</h3>
+                        <div class="progress-container">
+                            <div class="progress-bar progress-bar-success memory-used-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="metric-labels">
+                            <span class="memory-used-text">0 MB / 0 MB</span>
+                            <span class="memory-free-text">0 MB free</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-section">
+                    <h3 class="card-section-title">History</h3>
+                    <div class="chart-container">
+                        <canvas class="history-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card-section">
+                    <h3 class="card-section-title">Processes</h3>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>PID</th>
+                                    <th>Name</th>
+                                    <th>Memory</th>
+                                </tr>
+                            </thead>
+                            <tbody class="process-table-body">
+                                <tr>
+                                    <td colspan="3" class="table-center">No processes</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html> 
