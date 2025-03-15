@@ -1,6 +1,6 @@
 # gpus
 
-A web interface for monitoring NVIDIA GPU status, similar to nvidia-smi but with a clean, intuitive web interface featuring real-time updates and historical data visualization.
+A real-time web interface for monitoring NVIDIA GPUs.
 
 ## Features
 
