@@ -26,6 +26,7 @@ class GPUStats:
         self.max_history_points = int(history_length / history_resolution)
         self.history = {}
         self.last_update_time: Optional[float] = None
+        self.update_count = 0
         self.initialize_nvml()
 
     def initialize_nvml(self):
@@ -44,8 +45,8 @@ class GPUStats:
         if self.initialized:
             try:
                 pynvml.nvmlShutdown()
-            except pynvml.NVMLError:
-                pass
+            except pynvml.NVMLError as e:
+                print(f"Error during NVML shutdown: {e}")
 
     def get_device_info(self, device_index: int) -> Dict[str, Any]:
         """
@@ -58,6 +59,7 @@ class GPUStats:
             Dictionary containing device information
         """
         if not self.initialized:
+            print(f"Attempted to get device info but NVML not initialized: {self.error}")
             return {"error": self.error}
 
         try:
@@ -71,16 +73,20 @@ class GPUStats:
             if isinstance(uuid, bytes):
                 uuid = uuid.decode("utf-8")
 
+            memory_total = pynvml.nvmlDeviceGetMemoryInfo(handle).total
+            power_limit = pynvml.nvmlDeviceGetPowerManagementLimit(handle) / 1000.0
+            
             return {
                 "name": name,
                 "uuid": uuid,
-                "memory_total": pynvml.nvmlDeviceGetMemoryInfo(handle).total,
-                "power_limit": pynvml.nvmlDeviceGetPowerManagementLimit(handle)
-                / 1000.0,
+                "memory_total": memory_total,
+                "power_limit": power_limit,
                 "index": device_index,
             }
         except pynvml.NVMLError as e:
-            return {"error": str(e)}
+            error_msg = str(e)
+            print(f"Error getting device info for device {device_index}: {error_msg}")
+            return {"error": error_msg}
 
     def get_device_stats(self, device_index: int) -> Dict[str, Any]:
         """
@@ -136,7 +142,9 @@ class GPUStats:
                 "processes": processes,
             }
         except pynvml.NVMLError as e:
-            return {"error": str(e)}
+            error_msg = str(e)
+            print(f"Error getting device stats for device {device_index}: {error_msg}")
+            return {"error": error_msg}
 
     def get_all_devices_info(self) -> List[Dict[str, Any]]:
         """
@@ -173,6 +181,8 @@ class GPUStats:
         ):
             return
 
+        self.update_count += 1
+        
         self.last_update_time = current_time
         stats = self.get_all_devices_stats()
 
@@ -234,7 +244,7 @@ class GPUStats:
             }
 
         # Convert deques to lists for JSON serialization
-        return {
+        history = {
             "timestamps": list(self.history[device_index]["timestamps"]),
             "utilization_gpu": list(self.history[device_index]["utilization_gpu"]),
             "utilization_memory": list(
@@ -245,3 +255,5 @@ class GPUStats:
             "memory_used": list(self.history[device_index]["memory_used"]),
             "memory_percent": list(self.history[device_index]["memory_percent"]),
         }
+        
+        return history

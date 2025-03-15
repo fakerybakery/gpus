@@ -8,13 +8,27 @@ const TEMPERATURE_THRESHOLDS = {
     CRITICAL: 90
 };
 
+// Debug flag
+const DEBUG = true;
+
+// Debug logging function
+function debugLog(...args) {
+    if (DEBUG) {
+        console.log(`[${new Date().toLocaleTimeString()}]`, ...args);
+    }
+}
+
 // State
 const state = {
     devices: [],
     stats: [],
     charts: {},
     connected: false,
-    lastUpdate: null
+    lastUpdate: null,
+    socketEvents: {},
+    reconnectAttempts: 0,
+    heartbeatInterval: null,
+    lastHeartbeat: null
 };
 
 // DOM Elements
@@ -24,45 +38,224 @@ const elements = {
     noGpuAlert: document.getElementById('no-gpu-alert'),
     errorAlert: document.getElementById('error-alert'),
     updateStatus: document.getElementById('update-status'),
-    refreshBtn: document.getElementById('refresh-btn')
+    refreshBtn: document.getElementById('refresh-btn'),
+    reconnectBtn: document.getElementById('reconnect-btn')
 };
 
-// Socket.io connection
-const socket = io();
+// Socket.io connection with improved configuration
+const socket = io({
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+    transports: ['websocket', 'polling'],
+    upgrade: true,
+    forceNew: false,
+    autoConnect: true
+});
 
 // Initialize the application
 function init() {
+    debugLog('Initializing application');
+    
     // Set up event listeners
     elements.refreshBtn.addEventListener('click', refreshData);
+    elements.reconnectBtn.addEventListener('click', manualReconnect);
     
     // Set up socket.io event handlers
-    socket.on('connect', handleSocketConnect);
-    socket.on('disconnect', handleSocketDisconnect);
-    socket.on('devices', handleDevicesUpdate);
-    socket.on('stats', handleStatsUpdate);
+    setupSocketHandlers();
     
     // Initial data fetch
     fetchInitialData();
+    
+    // Set up periodic connection check
+    setInterval(checkConnection, 3000);
+    
+    // Start heartbeat
+    startHeartbeat();
+    
+    // Add window focus/blur event listeners
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('blur', handleWindowBlur);
+}
+
+// Handle window focus event
+function handleWindowFocus() {
+    debugLog('Window focused - checking connection');
+    if (!state.connected) {
+        debugLog('Reconnecting due to window focus');
+        manualReconnect();
+    } else {
+        // Refresh data when window gets focus
+        refreshData();
+    }
+}
+
+// Handle window blur event
+function handleWindowBlur() {
+    debugLog('Window blurred');
+}
+
+// Start heartbeat mechanism
+function startHeartbeat() {
+    debugLog('Starting heartbeat mechanism');
+    
+    // Clear any existing interval
+    if (state.heartbeatInterval) {
+        clearInterval(state.heartbeatInterval);
+    }
+    
+    // Set up new heartbeat interval (every 5 seconds)
+    state.heartbeatInterval = setInterval(() => {
+        if (state.connected) {
+            sendHeartbeat();
+        }
+    }, 5000);
+}
+
+// Send heartbeat to server
+function sendHeartbeat() {
+    debugLog('Sending heartbeat');
+    socket.emit('heartbeat', { timestamp: Date.now() }, (response) => {
+        if (response && response.status === 'ok') {
+            debugLog('Heartbeat acknowledged');
+            state.lastHeartbeat = Date.now();
+            state.lastUpdate = new Date(); // Update this to prevent reconnection
+        } else {
+            debugLog('Heartbeat failed');
+            // If heartbeat fails, try to reconnect
+            handleConnectionIssue();
+        }
+    });
+}
+
+// Set up all socket event handlers
+function setupSocketHandlers() {
+    debugLog('Setting up socket event handlers');
+    
+    // Remove any existing listeners to prevent duplicates
+    socket.off('connect');
+    socket.off('disconnect');
+    socket.off('connect_error');
+    socket.off('connect_timeout');
+    socket.off('reconnect');
+    socket.off('reconnect_attempt');
+    socket.off('reconnect_error');
+    socket.off('reconnect_failed');
+    socket.off('devices');
+    socket.off('stats');
+    
+    // Core connection events
+    socket.on('connect', handleSocketConnect);
+    socket.on('disconnect', handleSocketDisconnect);
+    socket.on('connect_error', (error) => {
+        debugLog('Connection error:', error);
+        handleConnectionIssue();
+    });
+    socket.on('connect_timeout', () => {
+        debugLog('Connection timeout');
+        handleConnectionIssue();
+    });
+    socket.on('reconnect', (attemptNumber) => {
+        debugLog(`Reconnected after ${attemptNumber} attempts`);
+        state.reconnectAttempts = 0;
+        refreshData(); // Refresh data after reconnection
+    });
+    socket.on('reconnect_attempt', (attemptNumber) => {
+        debugLog(`Reconnection attempt ${attemptNumber}`);
+        state.reconnectAttempts = attemptNumber;
+    });
+    socket.on('reconnect_error', (error) => {
+        debugLog('Reconnection error:', error);
+    });
+    socket.on('reconnect_failed', () => {
+        debugLog('Failed to reconnect');
+        elements.errorAlert.classList.remove('hidden');
+        elements.errorAlert.textContent = 'Failed to reconnect to the server. Please refresh the page.';
+    });
+    
+    // Data events
+    socket.on('devices', handleDevicesUpdate);
+    socket.on('stats', handleStatsUpdate);
+    
+    // Track event registrations to avoid duplicates
+    state.socketEvents = {
+        devices: true,
+        stats: true
+    };
+}
+
+// Check if connection is still working
+function checkConnection() {
+    const timeSinceLastUpdate = state.lastUpdate ? (new Date() - state.lastUpdate) / 1000 : 0;
+    debugLog(`Connection check: Last update was ${timeSinceLastUpdate.toFixed(1)}s ago, connected=${state.connected}`);
+    
+    // If no updates for more than 8 seconds and we think we're connected, try to reconnect
+    if (state.connected && state.lastUpdate && timeSinceLastUpdate > 8) {
+        debugLog('No updates received for 8+ seconds, attempting reconnection');
+        handleConnectionIssue();
+    }
+}
+
+// Handle connection issues
+function handleConnectionIssue() {
+    if (socket.connected) {
+        debugLog('Connection issue detected, disconnecting and reconnecting');
+        socket.disconnect();
+        setTimeout(() => {
+            socket.connect();
+        }, 1000);
+    } else {
+        debugLog('Already disconnected, waiting for reconnection');
+        // Force a reconnection if we've been disconnected for too long
+        if (!state.reconnectAttempts || state.reconnectAttempts > 5) {
+            debugLog('Forcing reconnection');
+            socket.connect();
+        }
+    }
 }
 
 // Socket event handlers
 function handleSocketConnect() {
+    debugLog('Connected to server');
     state.connected = true;
     elements.updateStatus.textContent = 'Connected';
     elements.updateStatus.classList.add('connected');
     elements.updateStatus.classList.remove('disconnected');
     elements.errorAlert.classList.add('hidden');
+    elements.reconnectBtn.classList.add('hidden');
+    
+    // Re-register device-specific event handlers if needed
+    if (state.devices.length > 0) {
+        registerDeviceEventHandlers();
+    }
+    
+    // Send heartbeat immediately after connection
+    sendHeartbeat();
 }
 
 function handleSocketDisconnect() {
+    debugLog('Disconnected from server');
     state.connected = false;
     elements.updateStatus.textContent = 'Disconnected';
     elements.updateStatus.classList.remove('connected');
     elements.updateStatus.classList.add('disconnected');
     elements.errorAlert.classList.remove('hidden');
+    elements.errorAlert.textContent = 'Disconnected from server. Attempting to reconnect...';
+    elements.reconnectBtn.classList.remove('hidden');
+    
+    // Try to reconnect automatically
+    setTimeout(() => {
+        if (!state.connected) {
+            debugLog('Auto-reconnecting after disconnect');
+            socket.connect();
+        }
+    }, 2000);
 }
 
 function handleDevicesUpdate(data) {
+    debugLog('Received devices data');
     const devices = JSON.parse(data);
     state.devices = devices;
     
@@ -72,19 +265,40 @@ function handleDevicesUpdate(data) {
     } else {
         elements.noGpuAlert.classList.add('hidden');
         renderDeviceCards();
-        
-        // Set up history event handlers for each device
-        devices.forEach((device, index) => {
-            if (device.error) return;
-            
-            socket.on(`history_${index}`, (data) => {
-                handleHistoryUpdate(index, JSON.parse(data));
-            });
-        });
+        registerDeviceEventHandlers();
     }
 }
 
+// Register event handlers for each device
+function registerDeviceEventHandlers() {
+    debugLog('Registering device event handlers');
+    
+    // Clear any existing handlers by removing and re-adding
+    state.devices.forEach((device, index) => {
+        if (device.error) return;
+        
+        const eventName = `history_${index}`;
+        
+        // Remove existing handler if any
+        if (state.socketEvents[eventName]) {
+            debugLog(`Removing existing handler for ${eventName}`);
+            socket.off(eventName);
+        }
+        
+        // Add new handler
+        debugLog(`Adding handler for ${eventName}`);
+        socket.on(eventName, (data) => {
+            debugLog(`Received history update for device ${index}`);
+            handleHistoryUpdate(index, JSON.parse(data));
+        });
+        
+        // Mark as registered
+        state.socketEvents[eventName] = true;
+    });
+}
+
 function handleStatsUpdate(data) {
+    debugLog('Received stats update');
     const stats = JSON.parse(data);
     state.stats = stats;
     state.lastUpdate = new Date();
@@ -94,9 +308,11 @@ function handleStatsUpdate(data) {
     
     // Update the UI with new stats
     updateDeviceStats();
+    debugLog('Stats update complete');
 }
 
 function handleHistoryUpdate(deviceIndex, historyData) {
+    debugLog(`Processing history update for device ${deviceIndex}: ${historyData.timestamps.length} data points`);
     updateChart(deviceIndex, historyData);
 }
 
@@ -153,6 +369,7 @@ function refreshData() {
 
 // UI Rendering
 function renderDeviceCards() {
+    debugLog('Rendering device cards for', state.devices.length, 'devices');
     // Clear existing cards
     elements.gpuCardsContainer.innerHTML = '';
     
@@ -181,6 +398,7 @@ function renderDeviceCards() {
 }
 
 function updateDeviceStats() {
+    debugLog('Updating stats for', state.stats.length, 'devices');
     state.stats.forEach((stats, index) => {
         if (stats.error) {
             console.error('Error with stats:', stats.error);
@@ -241,6 +459,7 @@ function updateDeviceStats() {
         // Update processes table
         updateProcessesTable(card, stats.processes);
     });
+    debugLog('Stats update complete');
 }
 
 // Helper function to update progress bar without reflow/repaint
@@ -385,8 +604,12 @@ function initializeChart(canvas, deviceIndex) {
 }
 
 function updateChart(deviceIndex, historyData) {
+    debugLog(`Updating chart for device ${deviceIndex} with ${historyData.timestamps.length} data points`);
     const chart = state.charts[deviceIndex];
-    if (!chart) return;
+    if (!chart) {
+        debugLog(`No chart found for device ${deviceIndex}`);
+        return;
+    }
     
     // Format timestamps for display
     const labels = historyData.timestamps.map(timestamp => {
@@ -401,6 +624,7 @@ function updateChart(deviceIndex, historyData) {
     
     // Update the chart without animation
     chart.update('none'); // Use 'none' mode to prevent any animations
+    debugLog(`Chart update complete for device ${deviceIndex}`);
 }
 
 // Utility functions
@@ -414,6 +638,46 @@ function formatBytes(bytes, decimals = 1) {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+// Ping the server to keep connection alive
+function pingServer() {
+    if (state.connected) {
+        debugLog('Pinging server to keep connection alive');
+        socket.emit('ping', {}, (response) => {
+            if (response && response.status === 'ok') {
+                debugLog('Ping successful, server responded');
+                // Update last update time to prevent unnecessary reconnection
+                state.lastUpdate = new Date();
+            } else {
+                debugLog('Ping failed or no response');
+                handleConnectionIssue();
+            }
+        });
+    }
+}
+
+// Manual reconnection
+function manualReconnect() {
+    debugLog('Manual reconnection requested');
+    elements.reconnectBtn.disabled = true;
+    elements.reconnectBtn.textContent = 'Reconnecting...';
+    
+    // Force disconnect and reconnect
+    if (socket.connected) {
+        socket.disconnect();
+    }
+    
+    // Clear any existing socket event handlers
+    setupSocketHandlers();
+    
+    setTimeout(() => {
+        socket.connect();
+        setTimeout(() => {
+            elements.reconnectBtn.disabled = false;
+            elements.reconnectBtn.textContent = 'Reconnect';
+        }, 2000);
+    }, 1000);
 }
 
 // Initialize the application when the DOM is loaded

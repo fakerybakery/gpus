@@ -17,7 +17,7 @@ setup(
         "click",
         "flask",
         "flask-socketio",
-        "eventlet",  # For WebSocket support
+        "eventlet>=0.30.0",  # For WebSocket support
         "python-engineio>=4.0.0",
         "python-socketio>=5.0.0",
         "psutil",  # For process management
