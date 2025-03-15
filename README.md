@@ -1,4 +1,4 @@
-# gpus
+# GPUs
 
 A real-time web interface for monitoring NVIDIA GPUs.
 
