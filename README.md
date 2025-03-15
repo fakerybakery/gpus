@@ -112,4 +112,5 @@ pip install -e .
 ## License
 
 MIT License
+
 Disclaimer: This was mostly a vibe-coded project. Use at your own risk.
