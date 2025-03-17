@@ -2,6 +2,11 @@
 
 A real-time web interface for monitoring NVIDIA GPUs.
 
+```bash
+pip install gpus
+gpus start
+```
+
 ![gpus_demo](https://github.com/user-attachments/assets/4f92d8b0-2937-4cdd-947f-9366d11370a1)
 
 ## Features
