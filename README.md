@@ -94,6 +94,12 @@ app = GPUMonitorApp(
 app.run(host='0.0.0.0', port=5000)
 ```
 
+## Cloud
+
+GPU Cloud allows you to easily manage your GPUs on-the-go. Remotely monitor your GPUs & get notified when your training runs fail.
+
+**Coming soon...**
+
 ## Development
 
 ### Setup Development Environment
