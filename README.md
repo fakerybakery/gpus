@@ -1,5 +1,8 @@
 # GPUs
 
+![PyPI - Downloads](https://img.shields.io/pypi/dm/gpus) ![GitHub License](https://img.shields.io/github/license/fakerybakery/gpus) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/fakerybakery/gpus)
+
+
 A real-time web interface for monitoring NVIDIA GPUs.
 
 ```bash
