@@ -104,9 +104,11 @@ app.run(host='0.0.0.0', port=5000)
 
 ## Cloud
 
-GPU Cloud allows you to easily manage your GPUs on-the-go. Remotely monitor your GPUs & get notified when your training runs fail.
+GPUs Cloud is a free cloud service that allows you to easily manage your GPUs on-the-go. Remotely monitor your GPUs from anywhere & get notified when your training runs fail.
 
-**Coming soon...**
+*Coming soon...*
+
+(GPUs Cloud is currently in private beta. If you want early access (highly unstable), please DM me on X.
 
 ## Development
 
