@@ -21,6 +21,8 @@ setup(
         "python-engineio>=4.0.0",
         "python-socketio>=5.0.0",
         "psutil",  # For process management
+        "rich>=10.0.0",  # For interactive CLI
+        "requests>=2.25.0",  # For API communication
     ],
     entry_points={
         "console_scripts": [

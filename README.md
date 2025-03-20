@@ -104,11 +104,48 @@ app.run(host='0.0.0.0', port=5000)
 
 ## Cloud
 
-GPUs Cloud is a free cloud service that allows you to easily manage your GPUs on-the-go. Remotely monitor your GPUs from anywhere & get notified when your training runs fail.
+GPUs Cloud is a free cloud service that allows you to easily manage your GPUs on-the-go. Remotely monitor your GPUs from anywhere & get notified when your training runs fail (coming soon).
 
-**Coming soon...**
+> [!WARNING]
+> GPUs Cloud is currently in a limited beta stage. If you want early access (highly unstable), please [DM me on X](https://x.com/realmrfakename) for an invite code. Expect some bugs, limited features, and high downtime.
 
-_GPUs Cloud is currently in private beta. If you want early access (highly unstable), please DM me on X._
+### Getting Started
+
+Sign up for a free account (using Hugging Face login) on the [GPUs Cloud website](https://gpus.mrfake.name). Enter your invite code and add a device. Then run the following command to login:
+
+```bash
+gpus cloud login
+```
+
+To start sending GPU metrics to the cloud (in the background), run the following command:
+
+```bash
+gpus cloud start
+```
+
+To stop sending GPU metrics to the cloud, run the following command:
+
+```bash
+gpus cloud stop
+```
+
+To check the status of the cloud client, run the following command:
+
+```bash
+gpus cloud status
+```
+
+To send metrics to the cloud (in the foreground), run the following command:
+
+```bash
+gpus cloud
+```
+
+To logout of the cloud, run the following command:
+
+```bash
+gpus cloud logout
+```
 
 ## Development
 
@@ -126,6 +163,12 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install in development mode
 pip install -e .
 ```
+
+## Debugging
+
+If you encounter issues, please check the logs in the `~/.gpus` directory. If the problem persists, please [create an issue](https://github.com/fakerybakery/gpus/issues) on GitHub.
+
+Note that GPUs has not been tested on Windows. Use at your own risk.
 
 ## License
 

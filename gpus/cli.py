@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 
 from gpus.app import GPUMonitorApp
+from gpus.cloud_client import CloudClient, stop_cloud_client, cloud_status, is_cloud_client_running
 
 
 # Constants for server management
@@ -40,6 +41,7 @@ def cli(ctx, host, port, update_interval, history_length, history_resolution, de
     gpus start    # Start server in background
     gpus stop     # Stop background server
     gpus status   # Check if server is running
+    gpus cloud    # Send GPU metrics to the cloud service
     """
     # Store options in context
     ctx.ensure_object(dict)
@@ -203,6 +205,95 @@ def status():
             )
     else:
         click.echo("No server is running")
+
+
+@cli.group(invoke_without_command=True)
+@click.option("--server", "-S", help="GPUs Cloud server URL")
+@click.option("--update-interval", "-U", default=5.0, help="Update interval in seconds")
+@click.pass_context
+def cloud(ctx, server, update_interval):
+    """
+    Send GPU metrics to the GPUs Cloud service
+    
+    Run without subcommands to start monitoring in the foreground.
+    Use subcommands to manage the cloud client:
+    
+    \b
+    gpus cloud login   # Login with pairing code
+    gpus cloud logout  # Log out and remove access token
+    gpus cloud start   # Start monitoring in background
+    gpus cloud stop    # Stop background monitoring
+    gpus cloud status  # Check if monitoring is running
+    """
+    ctx.ensure_object(dict)
+    ctx.obj["server"] = server
+    ctx.obj["update_interval"] = update_interval
+    
+    # If no subcommand is specified, run the cloud client in the foreground
+    if ctx.invoked_subcommand is None:
+        # Create cloud client
+        client = CloudClient(server_url=server, update_interval=update_interval)
+        
+        # Check if authenticated, if not, login first
+        if not client.is_authenticated():
+            if not client.login():
+                return
+        
+        # Start monitoring in foreground
+        client.start_monitoring(foreground=True)
+
+
+@cloud.command()
+@click.pass_context
+def login(ctx):
+    """Login to the GPUs Cloud service with a pairing code"""
+    # Create cloud client
+    client = CloudClient(server_url=ctx.obj.get("server"))
+    
+    # Login with pairing code
+    client.login()
+
+
+@cloud.command()
+@click.pass_context
+def logout(ctx):
+    """Log out from the GPUs Cloud service and remove access token"""
+    # Create cloud client
+    client = CloudClient(server_url=ctx.obj.get("server"))
+    
+    # Logout and remove access token
+    client.logout()
+
+
+@cloud.command()
+@click.pass_context
+def start(ctx):
+    """Start sending GPU metrics to the cloud in the background"""
+    # Create cloud client
+    client = CloudClient(
+        server_url=ctx.obj.get("server"),
+        update_interval=ctx.obj.get("update_interval", 5.0)
+    )
+    
+    # Check if authenticated, if not, login first
+    if not client.is_authenticated():
+        if not client.login():
+            return
+    
+    # Start monitoring in background
+    client.start_monitoring(foreground=False)
+
+
+@cloud.command()
+def stop():
+    """Stop the background cloud client"""
+    stop_cloud_client()
+
+
+@cloud.command()
+def status():
+    """Check if the cloud client is running"""
+    cloud_status()
 
 
 def run_server(host, port, update_interval, history_length, history_resolution, debug):
